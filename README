@@ -1,0 +1,4 @@
+This is a sandbox of sorts for testing code.
+
+compilation command (possibly to be put in a makefile at some point):
+g++ -llapackpp LightFieldCornerDetection.cpp alglib_src/ap.cpp alglib_src/interpolation.cpp alglib_src/alglibinternal.cpp alglib_src/integration.cpp alglib_src/specialfunctions.cpp alglib_src/linalg.cpp alglib_src/alglibmisc.cpp alglib_src/optimization.cpp alglib_src/solvers.cpp -o yooo `pkg-config --cflags --libs opencv`
