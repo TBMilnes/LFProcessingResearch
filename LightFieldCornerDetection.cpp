@@ -1,5 +1,6 @@
 // To Do: Set JPG quality setting to 100% in MATLAB capture script!!!
 // Somehow I'm referencing the same cluster more than once...likely an issue with indexing through the 48 corners.
+// Somehow the backgroundLight is lingering in the images...am I not subtracting it properly?
 
 #include "opencv2/core/core.hpp"
 #include "opencv2/imgproc/imgproc.hpp"
@@ -170,7 +171,8 @@ int main( int argc, char** argv ){
 */	
 
 	// Initialize variables
-	int gridRange[4] = {4,8,2,6};//[wmin,wmax,hmin,hmax]
+	//int gridRange[4] = {4,8,2,6};//[wmin,wmax,hmin,hmax]
+	int gridRange[4] = {3,9,1,7};//[wmin,wmax,hmin,hmax]
 	//int gridRange[4] = {1,10,1,10};//[wmin,wmax,hmin,hmax]
 	int numGridPoints = (gridRange[1]-gridRange[0]+1)*(gridRange[3]-gridRange[2]+1);
 	float *** calibrationGridFit = new float ** [boardSize.width];
@@ -416,6 +418,7 @@ int main( int argc, char** argv ){
 
 	// Calculate 3D position of each viable image pixel -- assume openCV takes top left pixel as (1,1) not (0,0)
 	float calTargetDistance = 1000; //mm
+	float zLim = 20000;
 	float tempInterp[3];
 	for(ii=1; ii<=imageSize.width; ii++){
 		for(jj=1; jj<=imageSize.height; jj++){
@@ -426,7 +429,7 @@ int main( int argc, char** argv ){
 					tempInterp[1] = idwcalc(&IDWInterpolantY,&interpPoint,&_state);
 					tempInterp[2] = idwcalc(&IDWInterpolantSg,&interpPoint,&_state);
 					// Caluclate Z (with crappy linear model)
-					pointsIn3D[ii-1][jj-1][2] = calTargetDistance + 2*(tempInterp[2]-scanGridFit[ii-1][jj-1][2]);
+					pointsIn3D[ii-1][jj-1][2] = calTargetDistance + 250*(tempInterp[2]-scanGridFit[ii-1][jj-1][2]);
 					// Calculate X & Y accounting for image-centering [Xcalculated = (XCal-XimageCenter)*Zcalibtarget/Zcalculated]
 					pointsIn3D[ii-1][jj-1][0] = (tempInterp[0]-imageCenterCoords[0])*calTargetDistance/pointsIn3D[ii-1][jj-1][2];
 					pointsIn3D[ii-1][jj-1][1] = (tempInterp[1]-imageCenterCoords[1])*calTargetDistance/pointsIn3D[ii-1][jj-1][2];
@@ -440,20 +443,21 @@ int main( int argc, char** argv ){
 	int counter = 0; Vec3b pixelColor;
 	for(ii=1; ii<=imageSize.width; ii++){
 		for(jj=1; jj<=imageSize.height; jj++){
-			if(scanGridFit[ii-1][jj-1][3]/scanGridFit[ii-1][jj-1][2] < gridFitErrorRatioThreshold && pointsIn3D[ii-1][jj-1][2]<1300 && pointsIn3D[ii-1][jj-1][2]>700){counter++;}}}
+			if(scanGridFit[ii-1][jj-1][3]/scanGridFit[ii-1][jj-1][2] < gridFitErrorRatioThreshold && pointsIn3D[ii-1][jj-1][2]<calTargetDistance+zLim && pointsIn3D[ii-1][jj-1][2]>calTargetDistance-zLim){counter++;}}}
 	printf("Found %i valid 3D points.\n",counter);
+
 	// Write out 3D point data in PLY format
 	FILE * point3DData = fopen("points3D.ply","w"); fprintf(point3DData,"ply\nformat ascii 1.0\nelement vertex %i\nproperty float x\nproperty float y\nproperty float z\nproperty uchar diffuse_red\nproperty uchar diffuse_green\nproperty uchar diffuse_blue\nend_header\n",counter); //PLY header w/ point count
 	for(ii=1; ii<=imageSize.width; ii++){
 		for(jj=1; jj<=imageSize.height; jj++){
-			if(scanGridFit[ii-1][jj-1][3]/scanGridFit[ii-1][jj-1][2] < gridFitErrorRatioThreshold && pointsIn3D[ii-1][jj-1][2]<1300 && pointsIn3D[ii-1][jj-1][2]>700){ //Filter out invalid data
+			if(scanGridFit[ii-1][jj-1][3]/scanGridFit[ii-1][jj-1][2] < gridFitErrorRatioThreshold && pointsIn3D[ii-1][jj-1][2]<calTargetDistance+zLim && pointsIn3D[ii-1][jj-1][2]>calTargetDistance-zLim){ //Filter out invalid data
 				pixelColor = view1.at<Vec3b>(jj-1,ii-1);//Sample original reference image 'view1' (BGR format, backward indices??)
 				fprintf(point3DData,"%f %f %f %i %i %i\n",pointsIn3D[ii-1][jj-1][0],pointsIn3D[ii-1][jj-1][1],pointsIn3D[ii-1][jj-1][2],pixelColor.val[2],pixelColor.val[1],pixelColor.val[0]);}}}
 	fclose(point3DData);
 
-//(int)pixelColor.val[2],(int)pixelColor.val[1],(int)pixelColor.val[0]
-
-
+/*
+	FINISH UP-----
+*/
 
 	// Report some information and exit
 	printf("Found %i (%3.5g%%) of %i expected corner points.\n",numCorners,float(numCorners)/float(expectedNumCorners)*100.0,expectedNumCorners);
